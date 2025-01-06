@@ -1,0 +1,31 @@
+# Ignore virtual environments
+venv/
+.env/
+.terraform/
+
+# Ignore sensitive variables files
+terraform.tfvars
+
+# Ignore IDE/editor-specific files
+.idea/
+.vscode/
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore any other unnecessary files
+.terraform.lock.hclterraform.tfstate*
+
+your-key-pair-name.pem
+
+terraform.tfstate
+terraform.tfstate.*
+*.backup
+
+*.tfstate
+*.backup
+
+
+plan_output.txt
+
+AzureDataInfraProject/*
