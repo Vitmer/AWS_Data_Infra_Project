@@ -16,7 +16,7 @@ terraform.tfvars
 # Ignore any other unnecessary files
 .terraform.lock.hclterraform.tfstate*
 
-your-key-pair-name.pem
+Vitalij.pem
 
 terraform.tfstate
 terraform.tfstate.*
@@ -28,4 +28,3 @@ terraform.tfstate.*
 
 plan_output.txt
 
-AzureDataInfraProject/*
