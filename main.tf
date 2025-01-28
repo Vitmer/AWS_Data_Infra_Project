@@ -18,7 +18,7 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
 
   tags = {
-    Name = "Main-VPC"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -30,7 +30,7 @@ resource "aws_subnet" "public" {
   availability_zone        = var.availability_zone
 
   tags = {
-    Name = "Public-Subnet"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -40,7 +40,7 @@ resource "aws_subnet" "private" {
   availability_zone = var.availability_zone
 
   tags = {
-    Name = "Private-Subnet"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -49,7 +49,7 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "Main-Internet-Gateway"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -63,7 +63,7 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name = "Public-Route-Table"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -76,7 +76,7 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "Private-Route-Table"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -97,7 +97,7 @@ resource "aws_nat_gateway" "main" {
   subnet_id     = aws_subnet.public.id
 
   tags = {
-    Name = "Main-NAT-Gateway"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -106,7 +106,7 @@ resource "aws_eip" "nat" {
   domain = "vpc"
 
   tags = {
-    Name = "NAT-Gateway-EIP"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -129,7 +129,7 @@ resource "aws_security_group" "public_sg" {
   }
 
   tags = {
-    Name = "Public-Security-Group"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -151,16 +151,13 @@ resource "aws_security_group" "private_sg" {
   }
 
   tags = {
-    Name = "Private-Security-Group"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
 resource "aws_nat_gateway" "example" {
   allocation_id = aws_eip.example.id
   subnet_id     = aws_subnet.public.id
-  tags = {
-    Name = "example-nat-gateway"
-  }
 }
 
 
@@ -172,7 +169,7 @@ resource "aws_instance" "bastion_public" {
   security_groups = [aws_security_group.public_sg.id]
 
   tags = {
-    Name = "Bastion-Public-Host"
+    Name = "AWS-Data-Infra-Project"
   }
 
   key_name = var.ssh_key_name
@@ -185,7 +182,7 @@ resource "aws_instance" "bastion_private" {
   security_groups = [aws_security_group.private_sg.id]
 
   tags = {
-    Name = "Bastion-Private-Host"
+    Name = "AWS-Data-Infra-Project"
   }
 
   key_name = var.ssh_key_name
@@ -200,7 +197,7 @@ resource "aws_s3_bucket" "backup_bucket" {
   #}
 
   tags = {
-    Name = "Backup-Bucket"
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -229,6 +226,10 @@ resource "aws_backup_plan" "daily_backup" {
     lifecycle {
       delete_after = 30
     }
+  }
+
+  tags = {
+    Name = "AWS-Data-Infra-Project"
   }
 }
 
@@ -261,6 +262,10 @@ resource "aws_iam_role" "backup_role" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  tags = {
+    Name = "AWS-Data-Infra-Project"
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "backup_attach" {
@@ -280,6 +285,9 @@ resource "aws_backup_plan" "example" {
     target_vault_name = aws_backup_vault.example.name
     schedule          = "cron(0 12 * * ? *)"
   }
+  tags = {
+    Name = "AWS-Data-Infra-Project"
+  }
 }
 
 resource "aws_autoscaling_group" "example" {
@@ -290,16 +298,25 @@ resource "aws_autoscaling_group" "example" {
 
 resource "aws_eip" "example" {
   domain = "vpc"
+
+  tags = {
+    Name = "AWS-Data-Infra-Project"
+  }
 }
 
 resource "aws_backup_vault" "example" {
   name = "example-backup-vault"
+
+  tags = {
+    Name = "AWS-Data-Infra-Project"
+  }
 }
 
 resource "aws_launch_configuration" "example" {
   name          = "example-launch-configuration"
   image_id      = "ami-12345678"
   instance_type = "t2.micro"
+
 }
 
 resource "aws_network_acl" "example" {
@@ -324,7 +341,6 @@ resource "aws_network_acl" "example" {
   }
 
   tags = {
-    Name = "example-network-acl"
+    Name = "AWS-Data-Infra-Project"
   }
 }
-

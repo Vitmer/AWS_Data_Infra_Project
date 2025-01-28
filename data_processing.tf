@@ -1,12 +1,16 @@
 # 24. AWS Glue Data Catalog
 resource "aws_glue_catalog_database" "example" {
   name = "unique-database-${random_string.suffix_processing.result}"
+
+  tags = var.tags
 }
 
 # 25. ETL Pipeline with Glue Workflow
 resource "aws_glue_workflow" "etl_pipeline" {
   name        = "etl-pipeline-${random_string.suffix_processing.result}"
   description = "ETL pipeline using AWS Glue"
+
+  tags = var.tags
 }
 
 resource "aws_glue_trigger" "etl_trigger" {
@@ -32,6 +36,8 @@ resource "aws_glue_job" "copy_blob_to_data_lake" {
     "--outputPath" = "s3://${aws_s3_bucket.data_lake.bucket}/processed-data/"
   }
   max_capacity = 2
+
+  tags = var.tags
 }
 
 # 26. Databricks ETL Pipeline (AWS EMR equivalent)
@@ -72,11 +78,15 @@ resource "aws_emr_cluster" "databricks_emr" {
       }
     }
   ])
+
+  tags = var.tags
 }
 
 # 27. Linked Service for S3 Blob Storage
 resource "aws_s3_bucket" "blob_storage" {
   bucket = "blob-storage-${random_string.suffix_processing.result}"
+
+  tags = var.tags
 }
 
 resource "aws_s3_object" "example_blob" {
@@ -84,21 +94,29 @@ resource "aws_s3_object" "example_blob" {
   key    = "example-folder/example-file.csv"
   source = "path/to/local/example-file.csv"
   acl    = "private"
+
+  tags = var.tags
 }
 
 # 28. Linked Service for S3 Data Lake
 resource "aws_s3_bucket" "data_lake" {
   bucket = "data-lake-${random_string.suffix_processing.result}"
+
+  tags = var.tags
 }
 
 # Scripts Bucket
 resource "aws_s3_bucket" "scripts" {
   bucket = "scripts-bucket-${random_string.suffix_processing.result}"
+
+  tags = var.tags
 }
 
 # Temp Bucket
 resource "aws_s3_bucket" "temp" {
   bucket = "temp-bucket-${random_string.suffix_processing.result}"
+
+  tags = var.tags
 }
 
 # IAM Role for Glue
@@ -116,11 +134,14 @@ resource "aws_iam_role" "glue_service_role" {
       }
     ]
   })
+
+  tags = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "glue_policy" {
   role       = aws_iam_role.glue_service_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+
 }
 
 # IAM Role and Instance Profile for EMR
@@ -139,16 +160,21 @@ resource "aws_iam_role" "emr_service_role" {
       }
     ]
   })
+
+  tags = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "emr_service_policy" {
   role       = aws_iam_role.emr_service_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole"
+
 }
 
 resource "aws_iam_instance_profile" "emr_profile" {
   name = "emr-profile-${random_string.suffix_processing.result}"
   role = aws_iam_role.emr_service_role.name
+
+  tags = var.tags
 }
 
 # Subnet for EMR
@@ -157,6 +183,8 @@ resource "aws_subnet" "main" {
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "us-east-1a"
   map_public_ip_on_launch = true
+
+  tags = var.tags
 }
 
 # 30. Dataset for Redshift SQL Table
@@ -187,6 +215,7 @@ resource "aws_glue_catalog_table" "blob_dataset" {
       serialization_library = "org.apache.hadoop.hive.serde2.OpenCSVSerde"
     }
   }
+
 }
 
 # 38. Random Suffix for Unique Naming
@@ -204,6 +233,8 @@ resource "aws_glue_job" "example" {
     script_location = "s3://path-to-script/script.py"
     python_version  = "3"
   }
+
+  tags = var.tags
 }
 
 resource "aws_emr_cluster" "example" {
@@ -220,6 +251,8 @@ resource "aws_emr_cluster" "example" {
   }
 
   service_role = aws_iam_role.emr_service.arn
+
+  tags = var.tags
 }
 
 resource "aws_lambda_function" "etl_processor" {
@@ -229,6 +262,8 @@ resource "aws_lambda_function" "etl_processor" {
   handler          = "index.handler"
   runtime          = "python3.9"
   source_code_hash = filebase64sha256("etl_processor.zip")
+
+  tags = var.tags
 }
 
 resource "aws_iam_role" "lambda_exec" {
@@ -243,4 +278,6 @@ resource "aws_iam_role" "lambda_exec" {
       }
     }]
   })
+
+  tags = var.tags
 }

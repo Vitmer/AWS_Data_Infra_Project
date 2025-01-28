@@ -7,7 +7,10 @@ resource "aws_athena_workgroup" "athena_workgroup" {
     result_configuration {
       output_location = "s3://${aws_s3_bucket.data_lake.bucket}/query-results/"
     }
+
   }
+
+  tags = var.tags
 }
 
 # 34. Redshift Cluster
@@ -22,6 +25,7 @@ resource "aws_redshift_cluster" "redshift_cluster" {
   iam_roles = [
     aws_iam_role.redshift_role.arn
   ]
+  tags = var.tags
 }
 
 # 35. IAM Role for Redshift
@@ -37,6 +41,7 @@ resource "aws_iam_role" "redshift_role" {
       }
     }]
   })
+  tags = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "redshift_s3_access" {
@@ -53,11 +58,14 @@ resource "aws_glue_connection" "redshift_connection" {
     PASSWORD             = var.redshift_password
     USERNAME             = "adminuser"
   }
+  tags = var.tags
 }
 
 # 37. Glue Database
 resource "aws_glue_catalog_database" "glue_database" {
   name = "analytics-db-${random_string.suffix_analytics.result}"
+
+  tags = var.tags
 }
 
 # 38. Glue Table for Redshift Data
@@ -89,6 +97,7 @@ resource "aws_quicksight_group" "example" {
   aws_account_id = var.aws_account_id
   namespace      = "default"
   group_name     = "example-group"
+
 }
 
 resource "aws_kinesisanalyticsv2_application" "example" {
@@ -110,6 +119,8 @@ resource "aws_kinesisanalyticsv2_application" "example" {
       code_content_type = "PLAINTEXT"
     }
   }
+
+  tags = var.tags
 }
 
 resource "aws_iam_role" "kinesis_exec" {
@@ -124,12 +135,16 @@ resource "aws_iam_role" "kinesis_exec" {
       }
     }]
   })
+
+  tags = var.tags
 }
 
 resource "aws_kinesis_stream" "example" {
   name             = "example-stream"
   shard_count      = 1
   retention_period = 24 # Время хранения данных в часах
+
+  tags = var.tags
 }
 
 resource "aws_quicksight_dashboard" "example" {
@@ -148,4 +163,6 @@ resource "aws_quicksight_dashboard" "example" {
       }
     }
   }
+
+  tags = var.tags
 }

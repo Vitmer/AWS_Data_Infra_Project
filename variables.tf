@@ -2,7 +2,7 @@
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "us-east-1"
+  default     = "eu-central-1"
 }
 
 variable "aws_access_key" {
@@ -27,7 +27,7 @@ variable "ami_id" {
 variable "availability_zone" {
   description = "Availability Zone for the subnets"
   type        = string
-  default     = "us-east-1a"
+  default     = "eu-central-1a"
 }
 
 # Resource Names
@@ -83,7 +83,7 @@ variable "tags" {
   type        = map(string)
   default     = {
     Environment = "dev"
-    Project     = "AWSDataInfraProject"
+    Project     = "AWS-Data-Infra-Project"
   }
 }
 

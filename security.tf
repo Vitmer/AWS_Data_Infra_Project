@@ -46,6 +46,8 @@ resource "aws_iam_policy" "terraform_access" {
       }
     ]
   })
+
+  tags = var.tags
 }
 
 # 21. Synapse SQL Password Secret
@@ -60,6 +62,7 @@ resource "aws_secretsmanager_secret" "synapse_sql_password" {
 resource "aws_secretsmanager_secret_version" "synapse_sql_password_value" {
   secret_id     = aws_secretsmanager_secret.synapse_sql_password.id
   secret_string = var.synapse_sql_password
+
 }
 
 # 22. Example Secret
@@ -79,6 +82,8 @@ resource "aws_secretsmanager_secret_version" "example_secret_value" {
 resource "aws_kms_key" "example" {
   description             = "Example key"
   deletion_window_in_days = 10
+
+  tags = var.tags
 }
 
 resource "aws_iam_role" "example_emr" {
@@ -93,6 +98,8 @@ resource "aws_iam_role" "example_emr" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  tags = var.tags
 }
 
 resource "aws_iam_role" "example" {
@@ -107,6 +114,8 @@ resource "aws_iam_role" "example" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  tags = var.tags
 }
 
 resource "aws_iam_role" "emr_service" {
@@ -121,6 +130,8 @@ resource "aws_iam_role" "emr_service" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  tags = var.tags
 }
 
 resource "aws_cloudtrail" "example" {
@@ -140,9 +151,7 @@ resource "aws_cloudtrail" "example" {
   is_multi_region_trail = true
   enable_logging        = true
 
-  tags = {
-    Name = "example-cloudtrail"
-  }
+  tags = var.tags
 }
 
 resource "aws_cloudwatch_metric_alarm" "example" {
@@ -163,11 +172,11 @@ resource "aws_cloudwatch_metric_alarm" "example" {
   ok_actions    = [aws_sns_topic.example.arn]
   insufficient_data_actions = [aws_sns_topic.example.arn]
 
-  tags = {
-    Name = "example-metric-alarm"
-  }
+  tags = var.tags
 }
 
 resource "aws_sns_topic" "example" {
   name = "example-topic"
+
+  tags = var.tags
 }
