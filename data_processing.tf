@@ -1,3 +1,10 @@
+# 1. Random Suffix for Unique Naming
+resource "random_string" "suffix_processing" {
+  length  = 6
+  special = false
+  upper   = false
+}
+
 # 24. AWS Glue Data Catalog
 resource "aws_glue_catalog_database" "example" {
   name = "unique-database-${random_string.suffix_processing.result}"
@@ -14,9 +21,9 @@ resource "aws_glue_workflow" "etl_pipeline" {
 }
 
 resource "aws_glue_trigger" "etl_trigger" {
-  name           = "etl-trigger-${random_string.suffix_processing.result}"
-  type           = "ON_DEMAND"
-  workflow_name  = aws_glue_workflow.etl_pipeline.name
+  name          = "etl-trigger-${random_string.suffix_processing.result}"
+  type          = "ON_DEMAND"
+  workflow_name = aws_glue_workflow.etl_pipeline.name
   actions {
     job_name = aws_glue_job.copy_blob_to_data_lake.name
   }
@@ -31,8 +38,8 @@ resource "aws_glue_job" "copy_blob_to_data_lake" {
     python_version  = "3"
   }
   default_arguments = {
-    "--TempDir"   = "s3://${aws_s3_bucket.temp.bucket}/temp/"
-    "--inputPath" = "s3://${aws_s3_bucket.blob_storage.bucket}/example-folder/example-file.csv"
+    "--TempDir"    = "s3://${aws_s3_bucket.temp.bucket}/temp/"
+    "--inputPath"  = "s3://${aws_s3_bucket.blob_storage.bucket}/example-folder/example-file.csv"
     "--outputPath" = "s3://${aws_s3_bucket.data_lake.bucket}/processed-data/"
   }
   max_capacity = 2
@@ -49,18 +56,18 @@ resource "aws_emr_cluster" "databricks_emr" {
   service_role = aws_iam_role.emr_service_role.name
 
   ec2_attributes {
-    key_name          = var.ssh_key_name
-    instance_profile  = aws_iam_instance_profile.emr_profile.arn
-    subnet_id         = aws_subnet.main.id
+    key_name         = var.ssh_key_name
+    instance_profile = aws_iam_instance_profile.emr_ec2_instance_profile.name # Здесь указано
+    subnet_id        = aws_subnet.emr_subnet.id
   }
 
   master_instance_group {
-    instance_type = "m5.xlarge"
+    instance_type  = "m5.xlarge"
     instance_count = 1
   }
 
   core_instance_group {
-    instance_type = "m5.xlarge"
+    instance_type  = "m5.xlarge"
     instance_count = 2
   }
 
@@ -72,7 +79,7 @@ resource "aws_emr_cluster" "databricks_emr" {
   configurations_json = jsonencode([
     {
       Classification = "spark",
-      Properties     = {
+      Properties = {
         "spark.executor.memory" = "2G",
         "spark.executor.cores"  = "2"
       }
@@ -89,20 +96,20 @@ resource "aws_s3_bucket" "blob_storage" {
   tags = var.tags
 }
 
+# Заглушка для example-file.csv
 resource "aws_s3_object" "example_blob" {
-  bucket = aws_s3_bucket.blob_storage.id
-  key    = "example-folder/example-file.csv"
-  source = "path/to/local/example-file.csv"
-  acl    = "private"
+  bucket  = aws_s3_bucket.blob_storage.id
+  key     = "example-file.csv"
+  content = "column1,column2,column3\nrow1col1,row1col2,row1col3" # Заглушка
 
   tags = var.tags
 }
 
 # 28. Linked Service for S3 Data Lake
 resource "aws_s3_bucket" "data_lake" {
-  bucket = "data-lake-${random_string.suffix_processing.result}"
-
-  tags = var.tags
+  bucket        = "data-lake-${random_string.suffix_processing.result}"
+  force_destroy = true
+  tags          = var.tags
 }
 
 # Scripts Bucket
@@ -123,13 +130,13 @@ resource "aws_s3_bucket" "temp" {
 resource "aws_iam_role" "glue_service_role" {
   name = "glue-service-role-${random_string.suffix_processing.result}"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow"
+        Effect = "Allow",
         Principal = {
           Service = "glue.amazonaws.com"
-        }
+        },
         Action = "sts:AssumeRole"
       }
     ]
@@ -141,13 +148,12 @@ resource "aws_iam_role" "glue_service_role" {
 resource "aws_iam_role_policy_attachment" "glue_policy" {
   role       = aws_iam_role.glue_service_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
-
 }
 
 # IAM Role and Instance Profile for EMR
+## Service Role
 resource "aws_iam_role" "emr_service_role" {
   name = "emr-service-role-${random_string.suffix_processing.result}"
-
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -160,29 +166,46 @@ resource "aws_iam_role" "emr_service_role" {
       }
     ]
   })
-
   tags = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "emr_service_policy" {
   role       = aws_iam_role.emr_service_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole"
+}
 
+## Instance Role for EC2
+resource "aws_iam_role" "emr_ec2_instance_role" {
+  name = "emr-ec2-role-${random_string.suffix_processing.result}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "emr_ec2_policy" {
+  role       = aws_iam_role.emr_ec2_instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role"
+}
+
+resource "aws_iam_instance_profile" "emr_ec2_instance_profile" {
+  name = "emr-ec2-instance-profile-${random_string.suffix_processing.result}"
+  role = aws_iam_role.emr_ec2_instance_role.name
+  tags = var.tags
 }
 
 resource "aws_iam_instance_profile" "emr_profile" {
   name = "emr-profile-${random_string.suffix_processing.result}"
   role = aws_iam_role.emr_service_role.name
-
-  tags = var.tags
-}
-
-# Subnet for EMR
-resource "aws_subnet" "main" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "us-east-1a"
-  map_public_ip_on_launch = true
 
   tags = var.tags
 }
@@ -218,13 +241,6 @@ resource "aws_glue_catalog_table" "blob_dataset" {
 
 }
 
-# 38. Random Suffix for Unique Naming
-resource "random_string" "suffix_processing" {
-  length  = 6
-  special = false
-  upper   = false
-}
-
 resource "aws_glue_job" "example" {
   name     = "example-glue-job"
   role_arn = aws_iam_role.example.arn
@@ -246,7 +262,7 @@ resource "aws_emr_cluster" "example" {
   }
 
   core_instance_group {
-    instance_type = "m5.xlarge"
+    instance_type  = "m5.xlarge"
     instance_count = 2
   }
 
@@ -267,7 +283,7 @@ resource "aws_lambda_function" "etl_processor" {
 }
 
 resource "aws_iam_role" "lambda_exec" {
-  name               = "lambda-exec-role"
+  name = "lambda-exec-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -280,4 +296,32 @@ resource "aws_iam_role" "lambda_exec" {
   })
 
   tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "kinesis_glue_access" {
+  role       = aws_iam_role.kinesis_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+}
+
+resource "aws_iam_role_policy_attachment" "glue_service_role" {
+  role       = aws_iam_role.kinesis_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+}
+
+resource "aws_iam_role" "athena_role" {
+  name = "athena-role-${random_string.suffix_analytics.result}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "athena.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "athena_s3_access" {
+  role       = aws_iam_role.athena_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
 }

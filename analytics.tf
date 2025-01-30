@@ -2,30 +2,41 @@
 resource "aws_athena_workgroup" "athena_workgroup" {
   name = "athena-workgroup-${random_string.suffix_analytics.result}"
   configuration {
-    enforce_workgroup_configuration = true
+    enforce_workgroup_configuration    = true
     publish_cloudwatch_metrics_enabled = true
     result_configuration {
       output_location = "s3://${aws_s3_bucket.data_lake.bucket}/query-results/"
     }
-
   }
-
   tags = var.tags
+
+  depends_on = [aws_s3_bucket.data_lake] # Убедимся, что бакет создан до Athena
 }
 
 # 34. Redshift Cluster
 resource "aws_redshift_cluster" "redshift_cluster" {
-  cluster_identifier = "redshift-cluster-${random_string.suffix_analytics.result}"
-  node_type          = "dc2.large"
-  master_username    = "adminuser"
-  master_password    = var.redshift_password
-  number_of_nodes    = 2
-  cluster_type       = "multi-node"
+  cluster_identifier  = "redshift-cluster-${random_string.suffix_analytics.result}"
+  node_type           = "dc2.large"
+  master_username     = "adminuser"
+  master_password     = var.redshift_password
+  number_of_nodes     = 2
+  cluster_type        = "multi-node"
   publicly_accessible = false
   iam_roles = [
     aws_iam_role.redshift_role.arn
   ]
+
   tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "redshift_full_access" {
+  role       = aws_iam_role.redshift_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonRedshiftAllCommandsFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "redshift_s3_full_access" {
+  role       = aws_iam_role.redshift_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
 # 35. IAM Role for Redshift
@@ -44,19 +55,24 @@ resource "aws_iam_role" "redshift_role" {
   tags = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "redshift_s3_access" {
-  role       = aws_iam_role.redshift_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+resource "aws_iam_role_policy_attachment" "kinesis_exec_lambda" {
+  role       = aws_iam_role.kinesis_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "kinesis_exec_full_access" {
+  role       = aws_iam_role.kinesis_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonKinesisFullAccess"
 }
 
 # 36. Glue Connection for Redshift
 resource "aws_glue_connection" "redshift_connection" {
   name = "redshift-connection-${random_string.suffix_analytics.result}"
   connection_properties = {
-    JDBC_ENFORCE_SSL     = "true"
-    JDBC_CONNECTION_URL  = "jdbc:redshift://${aws_redshift_cluster.redshift_cluster.endpoint}/dev"
-    PASSWORD             = var.redshift_password
-    USERNAME             = "adminuser"
+    JDBC_ENFORCE_SSL    = "true"
+    JDBC_CONNECTION_URL = "jdbc:redshift://${aws_redshift_cluster.redshift_cluster.endpoint}:5439/dev"
+    PASSWORD            = var.redshift_password
+    USERNAME            = "adminuser"
   }
   tags = var.tags
 }
@@ -91,6 +107,9 @@ resource "random_string" "suffix_analytics" {
   length  = 6
   special = false
   upper   = false
+  keepers = {
+    unique_id = "analytics"
+  }
 }
 
 resource "aws_quicksight_group" "example" {
@@ -101,8 +120,8 @@ resource "aws_quicksight_group" "example" {
 }
 
 resource "aws_kinesisanalyticsv2_application" "example" {
-  name                 = "example-kinesis-app"
-  runtime_environment  = "SQL-1_0"
+  name                   = "example-kinesis-app"
+  runtime_environment    = "SQL-1_0"
   service_execution_role = aws_iam_role.kinesis_exec.arn
 
   application_configuration {
@@ -124,7 +143,7 @@ resource "aws_kinesisanalyticsv2_application" "example" {
 }
 
 resource "aws_iam_role" "kinesis_exec" {
-  name               = "kinesis-exec-role"
+  name = "kinesis-exec-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -147,22 +166,31 @@ resource "aws_kinesis_stream" "example" {
   tags = var.tags
 }
 
+
 resource "aws_quicksight_dashboard" "example" {
-  aws_account_id       = var.aws_account_id
-  dashboard_id         = var.quicksight_dashboard_id
-  name                 = var.quicksight_dashboard_name
-  version_description  = var.quicksight_dashboard_version_description
+  aws_account_id      = var.aws_account_id
+  dashboard_id        = var.quicksight_dashboard_id
+  name                = var.quicksight_dashboard_name
+  version_description = var.quicksight_dashboard_version_description
 
   source_entity {
-  source_template {
-    arn = var.quicksight_template_arn
-
-    data_set_references {
-      data_set_arn         = var.data_set_arn
-      data_set_placeholder = "example-placeholder"
+    source_template {
+      arn = var.quicksight_template_arn # Используем переменную, а не data-ресурс
+      data_set_references {
+        data_set_arn         = var.data_set_arn
+        data_set_placeholder = "example-placeholder"
       }
     }
   }
 
   tags = var.tags
 }
+
+resource "aws_quicksight_data_set" "example" {
+  aws_account_id = var.aws_account_id
+  data_set_id    = "example-dataset-id"
+  name           = "Example Dataset"
+  import_mode    = "SPICE"
+}
+
+

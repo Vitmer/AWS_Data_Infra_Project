@@ -21,7 +21,7 @@ variable "aws_secret_key" {
 variable "ami_id" {
   description = "AMI ID for the EC2 instances"
   type        = string
-  default     = "ami-12345678" # Replace with your preferred AMI ID
+  default     = "ami-01a0731204136ddad" # Replace with your preferred AMI ID
 }
 
 variable "availability_zone" {
@@ -34,7 +34,7 @@ variable "availability_zone" {
 variable "vpc_name" {
   description = "Name of the VPC"
   type        = string
-  default     = "AWSDataInfra-VPC"
+  default     = "AWS-Data-Infra-VPC"
 }
 
 variable "public_vm_name" {
@@ -81,7 +81,7 @@ variable "vpc_id" {
 variable "tags" {
   description = "Tags to associate with resources"
   type        = map(string)
-  default     = {
+  default = {
     Environment = "dev"
     Project     = "AWS-Data-Infra-Project"
   }
@@ -141,4 +141,15 @@ variable "redshift_master_username" {
 variable "redshift_master_password" {
   description = "Master password for Redshift"
   type        = string
+}
+
+variable "my_ip" {
+  description = "Your IP address for SSH access"
+  type        = string
+}
+
+variable "vpc_cidr" {
+  description = "CIDR блок VPC"
+  type        = string
+  default     = "10.0.0.0/16"
 }
