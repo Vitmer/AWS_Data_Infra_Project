@@ -1,4 +1,4 @@
-# 33. Athena Workgroup
+# Athena Workgroup - A managed query service for analyzing data stored in S3
 resource "aws_athena_workgroup" "athena_workgroup" {
   name = "athena-workgroup-${random_string.suffix_analytics.result}"
   configuration {
@@ -10,62 +10,37 @@ resource "aws_athena_workgroup" "athena_workgroup" {
   }
   tags = var.tags
 
-  depends_on = [aws_s3_bucket.data_lake] # Убедимся, что бакет создан до Athena
+  depends_on = [aws_s3_bucket.data_lake] # Ensure the bucket is created before Athena
 }
 
-# 34. Redshift Cluster
+# Redshift Cluster - A managed data warehouse service
 resource "aws_redshift_cluster" "redshift_cluster" {
-  cluster_identifier  = "redshift-cluster-${random_string.suffix_analytics.result}"
-  node_type           = "dc2.large"
-  master_username     = "adminuser"
-  master_password     = var.redshift_password
-  number_of_nodes     = 2
-  cluster_type        = "multi-node"
-  publicly_accessible = false
+  cluster_identifier      = "redshift-cluster-${random_string.suffix_analytics.result}"
+  node_type               = "dc2.large"
+  master_username         = var.redshift_master_username
+  master_password         = var.redshift_password
+  number_of_nodes         = 2
+  cluster_type            = "multi-node"
+  publicly_accessible     = true
+  cluster_subnet_group_name = aws_redshift_subnet_group.redshift_subnet_group.name
+
   iam_roles = [
     aws_iam_role.redshift_role.arn
+  ]
+
+  enhanced_vpc_routing       = true  # Enables Concurrency Scaling for better performance
+  automated_snapshot_retention_period = 7 # Configures automated backups
+
+  depends_on = [
+    aws_redshift_subnet_group.redshift_subnet_group,
+    aws_route_table_association.redshift_a,
+    aws_route_table_association.redshift_b
   ]
 
   tags = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "redshift_full_access" {
-  role       = aws_iam_role.redshift_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonRedshiftAllCommandsFullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "redshift_s3_full_access" {
-  role       = aws_iam_role.redshift_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-}
-
-# 35. IAM Role for Redshift
-resource "aws_iam_role" "redshift_role" {
-  name = "redshift-role-${random_string.suffix_analytics.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "redshift.amazonaws.com"
-      }
-    }]
-  })
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "kinesis_exec_lambda" {
-  role       = aws_iam_role.kinesis_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_role_policy_attachment" "kinesis_exec_full_access" {
-  role       = aws_iam_role.kinesis_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonKinesisFullAccess"
-}
-
-# 36. Glue Connection for Redshift
+# Glue Connection for Redshift - Establishes a JDBC connection to Redshift for ETL processing
 resource "aws_glue_connection" "redshift_connection" {
   name = "redshift-connection-${random_string.suffix_analytics.result}"
   connection_properties = {
@@ -77,14 +52,14 @@ resource "aws_glue_connection" "redshift_connection" {
   tags = var.tags
 }
 
-# 37. Glue Database
+# Glue Database - Stores metadata for Glue ETL jobs
 resource "aws_glue_catalog_database" "glue_database" {
   name = "analytics-db-${random_string.suffix_analytics.result}"
 
   tags = var.tags
 }
 
-# 38. Glue Table for Redshift Data
+# Glue Table for Redshift Data - Defines an external table for Redshift data stored in S3
 resource "aws_glue_catalog_table" "analytics_table" {
   name          = "analytics_table"
   database_name = aws_glue_catalog_database.glue_database.name
@@ -102,7 +77,7 @@ resource "aws_glue_catalog_table" "analytics_table" {
   }
 }
 
-# 39. Random Suffix for Unique Naming
+# Random Suffix for Unique Naming - Ensures uniqueness across resources
 resource "random_string" "suffix_analytics" {
   length  = 6
   special = false
@@ -112,61 +87,23 @@ resource "random_string" "suffix_analytics" {
   }
 }
 
+# Kinesis Stream - Creates a data stream for real-time analytics
+resource "aws_kinesis_stream" "example" {
+  name             = "example-stream"
+  shard_count      = 1
+  retention_period = 24 # Data retention period in hours
+
+  tags = var.tags
+}
+
+# Quicksight Group - Creates a user group in AWS QuickSight
 resource "aws_quicksight_group" "example" {
   aws_account_id = var.aws_account_id
   namespace      = "default"
   group_name     = "example-group"
-
 }
 
-resource "aws_kinesisanalyticsv2_application" "example" {
-  name                   = "example-kinesis-app"
-  runtime_environment    = "SQL-1_0"
-  service_execution_role = aws_iam_role.kinesis_exec.arn
-
-  application_configuration {
-    application_code_configuration {
-      code_content {
-        text_content = <<-EOT
-          CREATE OR REPLACE STREAM "DESTINATION_SQL_STREAM" (
-            id VARCHAR(16),
-            value DOUBLE,
-            timestamp TIMESTAMP
-          );
-        EOT
-      }
-      code_content_type = "PLAINTEXT"
-    }
-  }
-
-  tags = var.tags
-}
-
-resource "aws_iam_role" "kinesis_exec" {
-  name = "kinesis-exec-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "kinesisanalytics.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_kinesis_stream" "example" {
-  name             = "example-stream"
-  shard_count      = 1
-  retention_period = 24 # Время хранения данных в часах
-
-  tags = var.tags
-}
-
-
+# Quicksight Dashboard - Creates a dashboard for visualizing analytics data
 resource "aws_quicksight_dashboard" "example" {
   aws_account_id      = var.aws_account_id
   dashboard_id        = var.quicksight_dashboard_id
@@ -175,22 +112,45 @@ resource "aws_quicksight_dashboard" "example" {
 
   source_entity {
     source_template {
-      arn = var.quicksight_template_arn # Используем переменную, а не data-ресурс
+      arn = var.quicksight_template_arn
       data_set_references {
         data_set_arn         = var.data_set_arn
         data_set_placeholder = "example-placeholder"
       }
     }
   }
+  depends_on = [aws_quicksight_group.example]
+  tags = var.tags
+}
+
+# S3 Bucket for Bootstrap Files - Stores initialization scripts and data
+resource "aws_s3_bucket" "bootstrap" {
+  bucket = "bootstrap-example-${random_string.suffix.result}"
 
   tags = var.tags
 }
 
-resource "aws_quicksight_data_set" "example" {
-  aws_account_id = var.aws_account_id
-  data_set_id    = "example-dataset-id"
-  name           = "Example Dataset"
-  import_mode    = "SPICE"
+# S3 Object for Bootstrap Script - Uploads an initialization script to the S3 bucket
+resource "aws_s3_object" "bootstrap_script" {
+  bucket = aws_s3_bucket.bootstrap.id
+  key    = "bootstrap.sh"
+  source = "${path.module}/bootstrap.sh"
+  etag   = filemd5("${path.module}/bootstrap.sh")
 }
 
-
+# S3 Object for Example Data - Stores example dataset in S3 for use in analytics
+resource "aws_s3_object" "example_file" {
+  bucket  = aws_s3_bucket.bootstrap.id
+  key     = "example-data/manifest.json"
+  content = jsonencode({
+    fileLocations = [
+      {
+        URIPrefixes = ["s3://${aws_s3_bucket.bootstrap.bucket}/example-data/"]
+      }
+    ]
+    globalUploadSettings = {
+      format = "CSV"
+    }
+  })
+  tags = var.tags
+}

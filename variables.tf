@@ -1,3 +1,5 @@
+
+
 # AWS Credentials
 variable "aws_region" {
   description = "AWS region to deploy resources"
@@ -15,6 +17,16 @@ variable "aws_secret_key" {
   description = "AWS secret key"
   type        = string
   sensitive   = true
+}
+
+variable "availability_zone_a" {
+  description = "Availability Zone A for deploying resources"
+  type        = string
+}
+
+variable "availability_zone_b" {
+  description = "Availability Zone B for deploying resources"
+  type        = string
 }
 
 # Instance Configuration

@@ -1,25 +1,24 @@
-# 1. Random Suffix for Unique Naming
+# Random Suffix - Generates a unique identifier for resource naming
 resource "random_string" "suffix_processing" {
   length  = 6
   special = false
   upper   = false
 }
 
-# 24. AWS Glue Data Catalog
+# AWS Glue Data Catalog - Stores metadata for data processing
 resource "aws_glue_catalog_database" "example" {
   name = "unique-database-${random_string.suffix_processing.result}"
-
   tags = var.tags
 }
 
-# 25. ETL Pipeline with Glue Workflow
+# AWS Glue Workflow - Orchestrates ETL pipeline execution
 resource "aws_glue_workflow" "etl_pipeline" {
   name        = "etl-pipeline-${random_string.suffix_processing.result}"
   description = "ETL pipeline using AWS Glue"
-
-  tags = var.tags
+  tags        = var.tags
 }
 
+# AWS Glue Trigger - Starts the Glue job on demand
 resource "aws_glue_trigger" "etl_trigger" {
   name          = "etl-trigger-${random_string.suffix_processing.result}"
   type          = "ON_DEMAND"
@@ -29,6 +28,7 @@ resource "aws_glue_trigger" "etl_trigger" {
   }
 }
 
+# AWS Glue Job - Copies data from blob storage to data lake
 resource "aws_glue_job" "copy_blob_to_data_lake" {
   name     = "copy-blob-to-data-lake"
   role_arn = aws_iam_role.glue_service_role.arn
@@ -43,21 +43,19 @@ resource "aws_glue_job" "copy_blob_to_data_lake" {
     "--outputPath" = "s3://${aws_s3_bucket.data_lake.bucket}/processed-data/"
   }
   max_capacity = 2
-
-  tags = var.tags
+  tags        = var.tags
 }
 
-# 26. Databricks ETL Pipeline (AWS EMR equivalent)
+# AWS EMR Cluster - Manages a distributed big data processing cluster
 resource "aws_emr_cluster" "databricks_emr" {
   name          = "databricks-emr-cluster-${random_string.suffix_processing.result}"
   release_label = "emr-6.10.0"
   applications  = ["Spark", "Hadoop"]
-
-  service_role = aws_iam_role.emr_service_role.name
+  service_role  = aws_iam_role.emr_service_role.name
 
   ec2_attributes {
     key_name         = var.ssh_key_name
-    instance_profile = aws_iam_instance_profile.emr_ec2_instance_profile.name # Здесь указано
+    instance_profile = aws_iam_instance_profile.emr_ec2_instance_profile.name
     subnet_id        = aws_subnet.emr_subnet.id
   }
 
@@ -89,128 +87,40 @@ resource "aws_emr_cluster" "databricks_emr" {
   tags = var.tags
 }
 
-# 27. Linked Service for S3 Blob Storage
+# S3 Bucket for Blob Storage - Stores raw data files
 resource "aws_s3_bucket" "blob_storage" {
   bucket = "blob-storage-${random_string.suffix_processing.result}"
-
-  tags = var.tags
+  tags   = var.tags
 }
 
-# Заглушка для example-file.csv
+# Example Blob Data File - Placeholder CSV file in S3
 resource "aws_s3_object" "example_blob" {
   bucket  = aws_s3_bucket.blob_storage.id
   key     = "example-file.csv"
-  content = "column1,column2,column3\nrow1col1,row1col2,row1col3" # Заглушка
-
-  tags = var.tags
+  content = "column1,column2,column3\nrow1col1,row1col2,row1col3"
+  tags    = var.tags
 }
 
-# 28. Linked Service for S3 Data Lake
+# S3 Bucket for Data Lake - Stores processed data
 resource "aws_s3_bucket" "data_lake" {
   bucket        = "data-lake-${random_string.suffix_processing.result}"
   force_destroy = true
   tags          = var.tags
 }
 
-# Scripts Bucket
+# S3 Bucket for Scripts - Stores Glue and EMR scripts
 resource "aws_s3_bucket" "scripts" {
   bucket = "scripts-bucket-${random_string.suffix_processing.result}"
-
-  tags = var.tags
+  tags   = var.tags
 }
 
-# Temp Bucket
+# S3 Bucket for Temporary Files - Stores intermediate processing data
 resource "aws_s3_bucket" "temp" {
   bucket = "temp-bucket-${random_string.suffix_processing.result}"
-
-  tags = var.tags
+  tags   = var.tags
 }
 
-# IAM Role for Glue
-resource "aws_iam_role" "glue_service_role" {
-  name = "glue-service-role-${random_string.suffix_processing.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Service = "glue.amazonaws.com"
-        },
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "glue_policy" {
-  role       = aws_iam_role.glue_service_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
-}
-
-# IAM Role and Instance Profile for EMR
-## Service Role
-resource "aws_iam_role" "emr_service_role" {
-  name = "emr-service-role-${random_string.suffix_processing.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Service = "elasticmapreduce.amazonaws.com"
-        },
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "emr_service_policy" {
-  role       = aws_iam_role.emr_service_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole"
-}
-
-## Instance Role for EC2
-resource "aws_iam_role" "emr_ec2_instance_role" {
-  name = "emr-ec2-role-${random_string.suffix_processing.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        },
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "emr_ec2_policy" {
-  role       = aws_iam_role.emr_ec2_instance_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role"
-}
-
-resource "aws_iam_instance_profile" "emr_ec2_instance_profile" {
-  name = "emr-ec2-instance-profile-${random_string.suffix_processing.result}"
-  role = aws_iam_role.emr_ec2_instance_role.name
-  tags = var.tags
-}
-
-resource "aws_iam_instance_profile" "emr_profile" {
-  name = "emr-profile-${random_string.suffix_processing.result}"
-  role = aws_iam_role.emr_service_role.name
-
-  tags = var.tags
-}
-
-# 30. Dataset for Redshift SQL Table
+# AWS Glue Table - Defines dataset schema for Redshift
 resource "aws_glue_catalog_table" "redshift_dataset" {
   name          = "redshift-dataset"
   database_name = aws_glue_catalog_database.example.name
@@ -225,52 +135,7 @@ resource "aws_glue_catalog_table" "redshift_dataset" {
   }
 }
 
-# 31. Dataset for S3 Blob
-resource "aws_glue_catalog_table" "blob_dataset" {
-  name          = "blob-dataset"
-  database_name = aws_glue_catalog_database.example.name
-  table_type    = "EXTERNAL_TABLE"
-  storage_descriptor {
-    location      = "s3://${aws_s3_bucket.blob_storage.bucket}/example-folder/example-file.csv"
-    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
-    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
-    ser_de_info {
-      serialization_library = "org.apache.hadoop.hive.serde2.OpenCSVSerde"
-    }
-  }
-
-}
-
-resource "aws_glue_job" "example" {
-  name     = "example-glue-job"
-  role_arn = aws_iam_role.example.arn
-  command {
-    name            = "glueetl"
-    script_location = "s3://path-to-script/script.py"
-    python_version  = "3"
-  }
-
-  tags = var.tags
-}
-
-resource "aws_emr_cluster" "example" {
-  name          = "example-emr-cluster"
-  release_label = "emr-6.3.0"
-
-  master_instance_group {
-    instance_type = "m5.xlarge"
-  }
-
-  core_instance_group {
-    instance_type  = "m5.xlarge"
-    instance_count = 2
-  }
-
-  service_role = aws_iam_role.emr_service.arn
-
-  tags = var.tags
-}
-
+# AWS Lambda Function - Runs ETL processing
 resource "aws_lambda_function" "etl_processor" {
   filename         = "etl_processor.zip"
   function_name    = "etl-processor"
@@ -278,50 +143,6 @@ resource "aws_lambda_function" "etl_processor" {
   handler          = "index.handler"
   runtime          = "python3.9"
   source_code_hash = filebase64sha256("etl_processor.zip")
-
-  tags = var.tags
+  tags             = var.tags
 }
 
-resource "aws_iam_role" "lambda_exec" {
-  name = "lambda-exec-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
-    }]
-  })
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "kinesis_glue_access" {
-  role       = aws_iam_role.kinesis_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
-}
-
-resource "aws_iam_role_policy_attachment" "glue_service_role" {
-  role       = aws_iam_role.kinesis_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
-}
-
-resource "aws_iam_role" "athena_role" {
-  name = "athena-role-${random_string.suffix_analytics.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "athena.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "athena_s3_access" {
-  role       = aws_iam_role.athena_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
-}
