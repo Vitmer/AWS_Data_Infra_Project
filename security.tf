@@ -1,300 +1,245 @@
-# Random ID Generator - Generates a unique suffix for resource naming
-resource "random_id" "unique_suffix" {
-  byte_length = 4
+# ========== RANDOM STRINGS  ==========
+variable "random_names" {
+  default = [
+    "synapse_sql_password",  # For Synapse SQL secret
+    "example_password",      # For demonstration secret
+    "suffix",                # For S3 buckets or other unique names
+    "synapse_secret",        # For Synapse KMS or other bindings
+    "example_secret"         # Example for usage
+  ]
 }
 
-resource "random_string" "suffix" {
+resource "random_string" "random_suffixes" {
+  for_each = toset(var.random_names)
+
   length  = 6
   special = false
   upper   = false
 }
 
-
-# Security Group for Public Access - Allows SSH access
-resource "aws_security_group" "public_sg" {
-  vpc_id = aws_vpc.main.id
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.my_ip] # SSH access only from your IP
+# ========== IAM РОЛИ  ==========
+variable "iam_roles" {
+  type = map(object({
+    name    = string
+    service = string
+  }))
+  
+  default = {
+    emr_service   = { name = "emr-service-role", service = "elasticmapreduce.amazonaws.com" }
+    emr_role      = { name = "EMR_DefaultRole", service = "elasticmapreduce.amazonaws.com" }
+    lambda_exec   = { name = "lambda-exec-role", service = "lambda.amazonaws.com" }
+    config_role   = { name = "config-role", service = "config.amazonaws.com" }
+    s3_access     = { name = "s3-access-role", service = "s3.amazonaws.com" }  
+    athena_role   = { name = "athena-role", service = "athena.amazonaws.com" }  
+    glue_role     = { name = "glue-service-role", service = "glue.amazonaws.com" } 
+    redshift_role = { name = "redshift-role", service = "redshift.amazonaws.com" }
+    vpc_flow_logs = { name = "vpc-flow-logs-role", service = "vpc-flow-logs.amazonaws.com" }
   }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = var.tags
 }
 
-# Security Group for Redshift - Restricts access to VPC only
-resource "aws_security_group" "redshift_sg" {
-  vpc_id      = aws_vpc.main.id
-  name        = "redshift-sg"
-  description = "Security group for Redshift"
-  ingress {
-    from_port   = 5439
-    to_port     = 5439
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"] # Allow access only inside VPC
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = var.tags
-}
+resource "aws_iam_role" "iam_roles" {
+  for_each = var.iam_roles
 
-# Network ACL - Restricts and controls VPC traffic
-resource "aws_network_acl" "example" {
-  vpc_id = aws_vpc.main.id
-  ingress {
-    protocol   = "tcp"
-    rule_no    = 100
-    action     = "allow"
-    cidr_block = var.vpc_cidr
-    from_port  = 22
-    to_port    = 22
-  }
-  egress {
-    protocol   = "-1"
-    rule_no    = 100
-    action     = "allow"
-    cidr_block = "0.0.0.0/0"
-    from_port  = 0
-    to_port    = 0
-  }
-  tags = var.tags
-}
-
-# Restrict Public Access to S3 Bucket
-resource "aws_s3_bucket_public_access_block" "storage_public_access" {
-  bucket                  = aws_s3_bucket.storage.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# S3 Bucket Policy - Grants access to a specific IAM Role
-resource "aws_s3_bucket_policy" "storage_policy" {
-  bucket = aws_s3_bucket.storage.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject"
-        ]
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/S3AccessRole"
-        }
-        Resource = "${aws_s3_bucket.storage.arn}/*"
-        Condition = {
-          IpAddress = {
-            "aws:SourceIp" = "203.0.113.0/24" # Allowed IP range
-          }
-        }
-      }
-    ]
+  name = each.value.name
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = each.value.service }
+      Action    = "sts:AssumeRole"
+    }]
   })
+  tags = var.tags
 }
 
-# Server-Side Encryption (SSE) - Encrypts objects with AWS KMS
-resource "aws_s3_bucket_server_side_encryption_configuration" "storage_encryption" {
-  bucket = aws_s3_bucket.storage.id
+# ========== IAM ПОЛИТИКИ  ==========
+variable "iam_policies" {
+  type = map(object({
+    name        = string
+    description = string
+    policy_arn  = string
+  }))
+  
+  default = {
+    s3_access     = { name = "S3FullAccess", description = "Full S3 Access", policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess" }
+    athena_role   = { name = "AthenaFullAccess", description = "Athena full access", policy_arn = "arn:aws:iam::aws:policy/AmazonAthenaFullAccess" }
+    lambda_exec   = { name = "LambdaBasicExecution", description = "Lambda execution", policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole" }
+    glue_role     = { name = "GlueServiceRole", description = "Glue service role", policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole" }
+    redshift_role = { name = "RedshiftFullAccess", description = "Full Redshift Access", policy_arn = "arn:aws:iam::aws:policy/AmazonRedshiftFullAccess" }
+    emr_role      = { name = "EMRFullAccess", description = "Full EMR Access", policy_arn = "arn:aws:iam::aws:policy/AmazonElasticMapReduceFullAccess" }
+    config_role   = { name = "ConfigAccess", description = "AWS Config Access", policy_arn = "arn:aws:iam::aws:policy/AWSConfigUserAccess" }
+    vpc_flow_logs = { name = "VpcFlowLogsAccess", description = "Allows VPC Flow Logs to write to CloudWatch", policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess" }
+  }
+}
 
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.key.arn
+resource "aws_iam_role_policy_attachment" "iam_policy_attachments" {
+  for_each = var.iam_policies
+
+  role       = aws_iam_role.iam_roles[each.key].name 
+  policy_arn = each.value.policy_arn
+}
+
+# ========== SECURITY GROUPS  ==========
+variable "security_groups" {
+  type = map(object({
+    name        = string
+    description = string
+    ingress     = list(object({
+      from_port   = number
+      to_port     = number
+      protocol    = string
+      cidr_blocks = list(string)  
+    }))
+  }))
+
+  default = {
+    public_sg = {
+      name        = "public-sg"
+      description = "Public SSH access"
+      ingress = [{
+        from_port   = 22
+        to_port     = 22
+        protocol    = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]  
+      }]
+    }
+    redshift_sg = {
+      name        = "redshift-sg"
+      description = "Redshift VPC access"
+      ingress = [{
+        from_port   = 5439
+        to_port     = 5439
+        protocol    = "tcp"
+        cidr_blocks = ["10.0.0.0/16"]  
+      }]
     }
   }
 }
 
+resource "aws_security_group" "sg" {
+  for_each = var.security_groups
 
-# IAM Role for AWS Backup Service
-resource "aws_iam_role" "backup_role" {
-  name = "BackupRole"
+  name        = each.value.name
+  description = each.value.description
+  vpc_id      = aws_vpc.main.id
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "backup.amazonaws.com"
-      }
-      Action = "sts:AssumeRole"
-    }]
-  })
-
-  lifecycle {
-    prevent_destroy = false # Allows Terraform to destroy this role if needed
+  dynamic "ingress" {
+    for_each = each.value.ingress
+    content {
+      from_port   = ingress.value.from_port
+      to_port     = ingress.value.to_port
+      protocol    = ingress.value.protocol
+      cidr_blocks = ingress.value.cidr_blocks
+    }
   }
 
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
   tags = var.tags
 }
 
-# Attaches AWS Backup service policy to IAM Role
-resource "aws_iam_role_policy_attachment" "backup_vault_access" {
-  role       = aws_iam_role.backup_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
+# ========== SECRETS MANAGER  ==========
+variable "secrets" {
+  type = map(string)
+  default = {
+    synapse_sql_password = "synapse-sql-password"
+    example_password     = "example-password"
+  }
 }
 
-# AWS KMS Key - Manages encryption keys for securing sensitive data
+resource "aws_secretsmanager_secret" "secrets" {
+  for_each = var.secrets
+
+  name = "${each.key}-${random_string.random_suffixes[each.key].result}"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+  tags = var.tags
+}
+
+resource "aws_secretsmanager_secret" "synapse_sql_password" {
+  name = "synapse-sql-password-${random_string.random_suffixes["synapse_secret"].result}"
+  tags = var.tags
+}
+
+resource "aws_secretsmanager_secret" "example_password" {
+  name = "example-password-${random_string.random_suffixes["example_secret"].result}"
+  tags = var.tags
+}
+
+# ========== KMS KEY ==========
 resource "aws_kms_key" "key" {
   description             = "KMS key for managing secrets"
   deletion_window_in_days = 7
   tags                    = var.tags
 }
 
-# AWS KMS Alias - Creates a friendly alias for the KMS key
 resource "aws_kms_alias" "key_alias" {
-  name          = "alias/kms-central-${substr(random_id.unique_suffix.hex, 0, 10)}"
+  name          = "alias/kms-central-${random_string.random_suffixes["suffix"].result}"
   target_key_id = aws_kms_key.key.id
 }
 
-# IAM Policy for Terraform Access - Grants Terraform permissions to manage secrets
-resource "aws_iam_policy" "terraform_access" {
-  name        = "terraform-key-access"
-  description = "Policy for Terraform to manage secrets in Secrets Manager"
+resource "aws_kms_key" "cloudtrail_kms" {
+  description             = "KMS key for CloudTrail logs"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  tags                    = var.tags
+}
 
+# ========== S3 POLICIES ==========
+resource "aws_s3_bucket_public_access_block" "bootstrap_access_block" {
+  bucket = aws_s3_bucket.bootstrap.id
+
+  block_public_acls       = true
+  block_public_policy     = false  
+  ignore_public_acls      = true
+  restrict_public_buckets = false  
+}
+
+resource "aws_s3_bucket_policy" "bootstrap_access" {
+  bucket = aws_s3_bucket.bootstrap.id
   policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [
-      {
-        Action = [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:ListSecrets",
-          "secretsmanager:CreateSecret",
-          "secretsmanager:DeleteSecret",
-          "secretsmanager:UpdateSecret",
-          "secretsmanager:PutSecretValue"
-        ],
-        Effect   = "Allow",
-        Resource = "*"
-      },
-      {
-        Action = [
-          "kms:Encrypt",
-          "kms:Decrypt",
-          "kms:GenerateDataKey",
-          "kms:DescribeKey"
-        ],
-        Effect   = "Allow",
-        Resource = aws_kms_key.key.arn
-      }
-    ]
+    Statement = [{
+      Effect    = "Allow",
+      Principal = "*",
+      Action    = ["s3:GetObject"],
+      Resource  = "${aws_s3_bucket.bootstrap.arn}/*"
+    }]
   })
 
-  tags = var.tags
+  depends_on = [aws_s3_bucket_public_access_block.bootstrap_access_block]
 }
 
-# Random String Generator - Generates unique suffixes for secret names
-resource "random_string" "synapse_secret_suffix" {
-  length  = 6
-  special = false
-  upper   = false
+# ========== LAMBDA FUNCTION ==========
+resource "aws_lambda_function" "secret_rotation" {
+  function_name = "secret-rotation-lambda"
+  runtime       = "python3.8"
+  handler       = "lambda_function.lambda_handler"
+  role          = aws_iam_role.iam_roles["lambda_exec"].arn
+  filename      = "lambda.zip"
+
+  depends_on = [null_resource.create_lambda_package]
 }
 
-resource "random_string" "example_secret_suffix" {
-  length  = 6
-  special = false
-  upper   = false
-}
-
-# AWS Secrets Manager - Creates a secret for Synapse SQL password
-resource "aws_secretsmanager_secret" "synapse_sql_password" {
-  name = "synapse-sql-password-${random_string.synapse_secret_suffix.result}"
-
-  lifecycle {
-    create_before_destroy = true
+resource "aws_secretsmanager_secret_rotation" "rotation" {
+  secret_id           = aws_secretsmanager_secret.secrets["synapse_sql_password"].id
+  rotation_lambda_arn = aws_lambda_function.secret_rotation.arn
+  rotation_rules {
+    automatically_after_days = 30
   }
-  tags = var.tags
 }
 
-# AWS Secrets Manager - Creates a secret for an example password
-resource "aws_secretsmanager_secret" "example_password" {
-  name = "example-password-${random_string.example_secret_suffix.result}"
-
-  lifecycle {
-    create_before_destroy = true
-  }
-  tags = var.tags
-}
-
-# AWS Secrets Manager - Stores values for secrets
-resource "aws_secretsmanager_secret_version" "synapse_sql_password_value" {
-  secret_id     = aws_secretsmanager_secret.synapse_sql_password.id
-  secret_string = var.synapse_sql_password
-}
-
-resource "aws_secretsmanager_secret_version" "example_password_value" {
-  secret_id     = aws_secretsmanager_secret.example_password.id
-  secret_string = var.example_password
-}
-
-# IAM Role for EMR - Grants permissions for Amazon EMR service
-resource "aws_iam_role" "example_emr" {
-  name = "example-emr-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "elasticmapreduce.amazonaws.com"
-      }
-      Action = "sts:AssumeRole"
-    }]
-  })
-
-  tags = var.tags
-}
-
-# IAM Role for Lambda - Grants execution permissions for AWS Lambda
-resource "aws_iam_role" "example" {
-  name = "example-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
-      Action = "sts:AssumeRole"
-    }]
-  })
-
-  tags = var.tags
-}
-
-# IAM Role for EMR Service - Grants permissions for Amazon EMR service
-resource "aws_iam_role" "emr_service" {
-  name = "emr-service-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "elasticmapreduce.amazonaws.com"
-      }
-      Action = "sts:AssumeRole"
-    }]
-  })
-
-  tags = var.tags
-}
-
-# AWS CloudTrail - Enables logging of AWS API calls for security monitoring
+# ========== CLOUDTRAIL ==========
 resource "aws_cloudtrail" "example" {
   name           = "example-cloudtrail-unique"
   s3_bucket_name = "example-cloudtrail-bucket"
+  kms_key_id     = aws_kms_key.cloudtrail_kms.arn  
 
   event_selector {
     read_write_type           = "All"
@@ -305,250 +250,17 @@ resource "aws_cloudtrail" "example" {
   enable_logging        = true
 }
 
-# IAM Policy for S3 - Grants permission to update S3 bucket policy
-resource "aws_iam_policy" "s3_policy" {
-  name        = "s3-access-policy"
-  description = "Allows updating bucket policy"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect   = "Allow",
-      Action   = "s3:PutBucketPolicy",
-      Resource = "arn:aws:s3:::my-s3-bucket"
-    }]
-  })
-
-  tags = var.tags
-}
-
-# IAM Role for S3 Access - Grants S3 permissions
-resource "aws_iam_role" "s3_access_role" {
-  name = "S3AccessRole"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Principal = { Service = "s3.amazonaws.com" },
-      Action    = "sts:AssumeRole"
-    }]
-  })
-
-  tags = var.tags
-}
-
-# IAM Policy Attachment - Grants full access to S3
-resource "aws_iam_policy_attachment" "s3_full_access" {
-  name       = "s3-full-access"
-  roles      = [aws_iam_role.s3_access_role.name]
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-}
-
-# IAM Role for EMR - Grants default EMR role permissions
-resource "aws_iam_role" "emr_role" {
-  name = "EMR_DefaultRole"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "elasticmapreduce.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
-}
-
-# IAM Instance Profile for EMR - Associates role with EC2 instances in EMR
-resource "aws_iam_instance_profile" "emr_instance_profile" {
-  name = "EMR_EC2_DefaultRole"
-  role = aws_iam_role.emr_role.name
-}
-
-# IAM Role for QuickSight - Grants QuickSight permissions
-resource "aws_iam_role" "quicksight_service_role" {
-  name = "QuickSightServiceRole-${random_string.suffix.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Service = "quicksight.amazonaws.com"
-      },
-      Action = "sts:AssumeRole"
-    }]
-  })
-
-  tags = var.tags
-}
-
-# IAM Policy for QuickSight S3 Access - Allows QuickSight to access S3 data sources
-resource "aws_iam_policy" "quicksight_s3_access" {
-  name        = "quicksight-s3-access"
-  description = "Allows QuickSight to access S3 data sources"
-  policy      = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["s3:GetObject", "s3:ListBucket"]
-      Resource = [
-        "arn:aws:s3:::your-bucket-name",
-        "arn:aws:s3:::your-bucket-name/*"
-      ]
-    }]
-  })
-}
-
-# S3 Bucket Policy - Defines access control for the bootstrap bucket
-resource "aws_s3_bucket_policy" "bootstrap_access" {
-  bucket = aws_s3_bucket.bootstrap.id
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = "*",
-      Action = ["s3:GetObject"],
-      Resource = "${aws_s3_bucket.bootstrap.arn}/*"
-    }]
-  })
-}
-
-# IAM Role Policy Attachment for Redshift - Grants full access to Redshift commands
-resource "aws_iam_role_policy_attachment" "redshift_full_access" {
-  role       = aws_iam_role.redshift_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonRedshiftAllCommandsFullAccess"
-}
-
-# IAM Role Policy Attachment for Redshift S3 - Grants Redshift full access to S3
-resource "aws_iam_role_policy_attachment" "redshift_s3_full_access" {
-  role       = aws_iam_role.redshift_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-}
-
-# IAM Role for Redshift - Required for permissions to access AWS services
-resource "aws_iam_role" "redshift_role" {
-  name = "redshift-role-${random_string.suffix_analytics.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "redshift.amazonaws.com"
-      }
-    }]
-  })
-  tags = var.tags
-}
-
-# IAM Role Policy Attachment for Lambda Execution - Grants basic execution permissions to Lambda
-resource "aws_iam_role_policy_attachment" "kinesis_exec_lambda" {
-  role       = aws_iam_role.kinesis_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# IAM Role Policy Attachment for Kinesis - Grants full access to Kinesis services
-resource "aws_iam_role_policy_attachment" "kinesis_exec_full_access" {
-  role       = aws_iam_role.kinesis_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonKinesisFullAccess"
-}
-
-# IAM Role for Kinesis - Grants permissions for Kinesis execution
-resource "aws_iam_role" "kinesis_exec" {
-  name = "kinesis-exec-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "kinesisanalytics.amazonaws.com"
-      }
-    }]
-  })
-  tags = var.tags
-}
-
-# IAM Role for AWS Glue - Grants permissions for Glue ETL jobs
-resource "aws_iam_role" "glue_service_role" {
-  name = "glue-service-role-${random_string.suffix_processing.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Principal = { Service = "glue.amazonaws.com" },
-      Action    = "sts:AssumeRole"
-    }]
-  })
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "glue_policy" {
-  role       = aws_iam_role.glue_service_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
-}
-
-# IAM Role for EMR - Grants permissions to EMR service
-resource "aws_iam_role" "emr_service_role" {
-  name = "emr-service-role-${random_string.suffix_processing.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Principal = { Service = "elasticmapreduce.amazonaws.com" },
-      Action    = "sts:AssumeRole"
-    }]
-  })
-  tags = var.tags
-}
-
-# IAM Instance Profile for EMR EC2 Instances
 resource "aws_iam_instance_profile" "emr_ec2_instance_profile" {
-  name = "emr-ec2-instance-profile-${random_string.suffix_processing.result}"
-  role = aws_iam_role.emr_ec2_instance_role.name
-  tags = var.tags
+  name = "emr-ec2-instance-profile-${random_string.random_suffixes["suffix"].result}"
+  role = aws_iam_role.iam_roles["emr_role"].name
 }
 
-# IAM Role for Lambda Execution - Grants permissions to AWS Lambda
-resource "aws_iam_role" "lambda_exec" {
-  name = "lambda-exec-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Principal = { Service = "lambda.amazonaws.com" },
-      Action    = "sts:AssumeRole"
-    }]
-  })
-  tags = var.tags
-}
+resource "null_resource" "create_lambda_package" {
+  provisioner "local-exec" {
+    command = "zip -j ${path.module}/lambda.zip ${path.module}/lambda_function.py"
+  }
 
-# IAM Role for Athena - Grants access to run queries
-resource "aws_iam_role" "athena_role" {
-  name = "athena-role-${random_string.suffix_analytics.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect    = "Allow",
-      Principal = { Service = "athena.amazonaws.com" },
-      Action    = "sts:AssumeRole"
-    }]
-  })
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "athena_s3_access" {
-  role       = aws_iam_role.athena_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
-}
-
-resource "aws_iam_role" "emr_ec2_instance_role" {
-  name = "emr-ec2-role-${random_string.suffix.result}"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = { Service = "ec2.amazonaws.com" },
-      Action = "sts:AssumeRole"
-    }]
-  })
-  tags = var.tags
+  triggers = {
+    lambda_function = filemd5("${path.module}/lambda_function.py")
+  }
 }

@@ -4,7 +4,7 @@ resource "aws_launch_template" "example" {
   image_id      = var.ami_id # Specifies the Amazon Machine Image (AMI) ID for the instance
   instance_type = "t2.micro" # Defines the instance type
 
-  vpc_security_group_ids = [aws_security_group.public_sg.id] # Associates the instance with a security group
+  vpc_security_group_ids = [aws_security_group.sg["public_sg"].id] # Associates the instance with a security group
 
   tag_specifications {
     resource_type = "instance"

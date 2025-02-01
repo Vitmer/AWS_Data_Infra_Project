@@ -27,4 +27,12 @@ terraform.tfstate.*
 
 
 plan_output.txt
+bootstrap.sh
+emr-policy.json
+path-to-bootstrap.sh
 
+data.csv
+lambda.zip
+lambda_function.py
+manifest.json
+monitoring.tf

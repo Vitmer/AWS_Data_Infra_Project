@@ -23,9 +23,10 @@ resource "aws_redshift_cluster" "redshift_cluster" {
   cluster_type            = "multi-node"
   publicly_accessible     = true
   cluster_subnet_group_name = aws_redshift_subnet_group.redshift_subnet_group.name
+  skip_final_snapshot = true
 
   iam_roles = [
-    aws_iam_role.redshift_role.arn
+    aws_iam_role.iam_roles["redshift_role"].arn
   ]
 
   enhanced_vpc_routing       = true  # Enables Concurrency Scaling for better performance
@@ -125,7 +126,7 @@ resource "aws_quicksight_dashboard" "example" {
 
 # S3 Bucket for Bootstrap Files - Stores initialization scripts and data
 resource "aws_s3_bucket" "bootstrap" {
-  bucket = "bootstrap-example-${random_string.suffix.result}"
+  bucket = "bootstrap-example-${random_string.random_suffixes["suffix"].result}"
 
   tags = var.tags
 }

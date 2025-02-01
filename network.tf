@@ -132,7 +132,7 @@ resource "aws_route_table_association" "redshift_b" {
   route_table_id = aws_route_table.private.id
 }
 
-# 🔹 EMR Route Table Association - Ensure EMR subnet uses NAT Gateway
+# EMR Route Table Association - Ensure EMR subnet uses NAT Gateway
 resource "aws_route_table_association" "emr_private_association" {
   subnet_id      = aws_subnet.emr_subnet.id
   route_table_id = aws_route_table.private.id
@@ -143,20 +143,14 @@ resource "aws_instance" "bastion_public" {
   ami             = var.ami_id
   instance_type   = "t2.micro"
   subnet_id       = aws_subnet.public.id
-  security_groups = [aws_security_group.public_sg.id]
+  security_groups = [aws_security_group.sg["public_sg"].id]
   key_name        = var.ssh_key_name
   tags            = var.tags
 }
 
 # Backup Vault - Stores EC2 snapshots
 resource "aws_backup_vault" "backup_vault" {
-  name = "ec2-backup-vault-${random_string.suffix.result}"
-}
-
-# CloudWatch Log Group - Stores application logs
-resource "aws_cloudwatch_log_group" "example" {
-  name              = "/aws/example"
-  retention_in_days = 14 # Keeps logs for 14 days
+  name = "ec2-backup-vault-${random_string.random_suffixes["suffix"].result}"
 }
 
 # AWS Backup Plan - Creates daily backups for EC2 instances

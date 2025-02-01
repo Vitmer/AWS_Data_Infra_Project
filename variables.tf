@@ -165,3 +165,27 @@ variable "vpc_cidr" {
   type        = string
   default     = "10.0.0.0/16"
 }
+
+variable "allowed_ip" {
+  description = "Allowed IP for IAM policy"
+  type        = string
+  default     = "0.0.0.0/0"  
+}
+
+variable "vpc_flow_logs_retention_days" {
+  description = "Number of days to retain VPC Flow Logs in CloudWatch"
+  type        = number
+  default     = 30
+}
+
+variable "enable_vpc_s3_logging" {
+  description = "Enable logging of VPC Flow Logs to S3"
+  type        = bool
+  default     = true
+}
+
+variable "enable_vpc_cloudwatch_logging" {
+  description = "Enable logging of VPC Flow Logs to CloudWatch"
+  type        = bool
+  default     = true
+}

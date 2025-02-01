@@ -31,7 +31,7 @@ resource "aws_glue_trigger" "etl_trigger" {
 # AWS Glue Job - Copies data from blob storage to data lake
 resource "aws_glue_job" "copy_blob_to_data_lake" {
   name     = "copy-blob-to-data-lake"
-  role_arn = aws_iam_role.glue_service_role.arn
+  role_arn = aws_iam_role.iam_roles["glue_role"].arn
   command {
     name            = "glueetl"
     script_location = "s3://${aws_s3_bucket.scripts.bucket}/scripts/copy_blob_to_datalake.py"
@@ -51,7 +51,7 @@ resource "aws_emr_cluster" "databricks_emr" {
   name          = "databricks-emr-cluster-${random_string.suffix_processing.result}"
   release_label = "emr-6.10.0"
   applications  = ["Spark", "Hadoop"]
-  service_role  = aws_iam_role.emr_service_role.name
+  service_role  = aws_iam_role.iam_roles["emr_service"].name
 
   ec2_attributes {
     key_name         = var.ssh_key_name
@@ -139,7 +139,7 @@ resource "aws_glue_catalog_table" "redshift_dataset" {
 resource "aws_lambda_function" "etl_processor" {
   filename         = "etl_processor.zip"
   function_name    = "etl-processor"
-  role             = aws_iam_role.lambda_exec.arn
+  role             = aws_iam_role.iam_roles["lambda_exec"].arn
   handler          = "index.handler"
   runtime          = "python3.9"
   source_code_hash = filebase64sha256("etl_processor.zip")
