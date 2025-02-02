@@ -36,3 +36,11 @@ lambda.zip
 lambda_function.py
 manifest.json
 monitoring.tf
+
+.terraform.lock.hcl
+bootstrap.sh
+emr-policy.json
+etl_processor.zip
+example-file.csv
+index.js
+path-to-bootstrap.sh
