@@ -21,6 +21,8 @@ resource "aws_s3_bucket_versioning" "storage_versioning" {
 resource "aws_s3_bucket" "vpc_logs_bucket" {
   count  = var.enable_vpc_s3_logging ? 1 : 0
   bucket = "vpc-flow-logs-${random_string.random_suffixes["suffix"].result}"
+  force_destroy = true 
+  tags          = var.tags
 }
 
 # VPC Flow Logs - S3
@@ -34,6 +36,8 @@ resource "aws_flow_log" "vpc_logs_s3" {
 
 resource "aws_s3_bucket" "example" {
   bucket = "my-secure-bucket-${random_string.random_suffixes["suffix"].result}"
+  force_destroy = true 
+  tags = var.tags
 }
 
 # Lifecycle Policy - Automatically deletes objects after 30 days
@@ -180,18 +184,41 @@ resource "aws_quicksight_data_source" "example_data_source" {
   tags = var.tags
 }
 
-# ========== QuickSight Data Set ==========
-resource "aws_quicksight_data_set" "example_data_set" {
-  aws_account_id = var.aws_account_id
-  data_set_id    = "example-dataset-id"
-  name           = "Example Dataset"
+/* # ========== QuickSight Data Set ==========
+#resource "aws_quicksight_data_set" "example_data_set" {
+#  data_set_id = "example-dataset-id"
+#  name        = "Example Data Set"
+#  import_mode = "SPICE"
 
-  import_mode = "SPICE"
+  physical_table_map {
+    id = "example_table"
+    s3_source {
+      data_source_arn = aws_quicksight_data_source.example_data_source.arn
+      input_columns = [
+        {
+          name = "column1"
+          type = "STRING"
+        },
+        {
+          name = "column2"
+          type = "INTEGER"
+        }
+      ]
+    }
+  }
 
-  permissions {
-    principal = "arn:aws:iam::${var.aws_account_id}:role/service-role/AWSQuickSightAthenaAccess"
-    actions   = ["quicksight:DescribeDataSet"]
+  logical_table_map {
+    id    = "logical_table_1"
+    alias = "LogicalTable1"
+    source {
+      physical_table_id = "example_table"
+    }
+    data_transforms {
+      project_operation {
+        projected_columns = ["column1", "column2"]
+      }
+    }
   }
 
   tags = var.tags
-}
+}*/
