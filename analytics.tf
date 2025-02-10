@@ -19,7 +19,7 @@ resource "aws_redshift_cluster" "redshift_cluster" {
   node_type               = "dc2.large"
   master_username         = var.redshift_master_username
   master_password         = var.redshift_password
-  number_of_nodes         = 2
+  number_of_nodes         = 3
   cluster_type            = "multi-node"
   publicly_accessible     = true
   cluster_subnet_group_name = aws_redshift_subnet_group.redshift_subnet_group.name

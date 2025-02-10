@@ -1,3 +1,10 @@
+
+resource "aws_db_instance" "rds_example" {
+  engine         = "postgres"
+  instance_class = "db.m5.large"
+  multi_az       = true
+}
+
 # =============================
 # S3 STORAGE CONFIGURATION
 # =============================
@@ -23,15 +30,6 @@ resource "aws_s3_bucket" "vpc_logs_bucket" {
   bucket = "vpc-flow-logs-${random_string.random_suffixes["suffix"].result}"
   force_destroy = true 
   tags          = var.tags
-}
-
-# VPC Flow Logs - S3
-resource "aws_flow_log" "vpc_logs_s3" {
-  count               = var.enable_vpc_s3_logging ? 1 : 0
-  log_destination      = aws_s3_bucket.vpc_logs_bucket[0].arn
-  log_destination_type = "s3"
-  traffic_type         = "ALL"
-  vpc_id               = aws_vpc.main.id
 }
 
 resource "aws_s3_bucket" "example" {
@@ -222,3 +220,26 @@ resource "aws_quicksight_data_source" "example_data_source" {
 
   tags = var.tags
 }*/
+
+# План резервного копирования
+resource "aws_backup_plan" "backup_plan" {
+  name = "daily-backup-plan"
+
+  rule {
+    rule_name         = "daily-backup-rule"
+    target_vault_name = aws_backup_vault.backup_vault.name
+    schedule          = "cron(0 2 * * ? *)"  # Запуск в 2:00 ночи
+  }
+}
+
+# Backup Vault - Stores EC2 snapshots
+resource "aws_backup_vault" "backup_vault" {
+  name = "ec2-backup-vault-${random_string.random_suffixes["suffix"].result}"
+}
+
+resource "aws_s3_bucket_logging" "data_lake_logs" {
+  bucket = aws_s3_bucket.data_lake.id
+
+  target_bucket = aws_s3_bucket.cloudtrail_bucket.id
+  target_prefix = "s3-access-logs/"
+}

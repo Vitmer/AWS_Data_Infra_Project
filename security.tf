@@ -264,3 +264,77 @@ resource "null_resource" "create_lambda_package" {
     lambda_function = filemd5("${path.module}/lambda_function.py")
   }
 }
+
+# Security Group для EMR
+resource "aws_security_group" "emr_sg" {
+  vpc_id = aws_vpc.main.id
+  name   = "emr-sg"
+
+  ingress {
+    from_port   = 8443
+    to_port     = 8443
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_wafv2_web_acl" "main" {
+  name        = "web-acl"
+  scope       = "REGIONAL"  # "REGIONAL" - для ALB/API Gateway, "CLOUDFRONT" - для CloudFront
+  description = "Web Application Firewall for security"
+
+  default_action {
+    allow {}
+  }
+
+  rule {
+    name     = "IPBlockRule"
+    priority = 1
+
+    action {
+      block {}
+    }
+
+    statement {
+      ip_set_reference_statement {
+        arn = aws_wafv2_ip_set.blocked_ips.arn
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "IPBlockRule"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "WebACL"
+    sampled_requests_enabled   = true
+  }
+}
+
+# AWS WAF IP Set для блокировки определённых IP-адресов
+resource "aws_wafv2_ip_set" "blocked_ips" {
+  name               = "blocked-ips"
+  scope              = "REGIONAL"  # Используется для ALB, API Gateway, App Runner. Для CloudFront - "CLOUDFRONT".
+  description        = "IP addresses blocked by WAF"
+  ip_address_version = "IPV4"
+
+  addresses = [
+    "192.168.1.1/32",
+    "203.0.113.0/24"
+  ]
+
+  tags = {
+    Name = "Blocked IPs"
+  }
+}

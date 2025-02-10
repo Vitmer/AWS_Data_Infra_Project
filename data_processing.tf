@@ -67,6 +67,34 @@ resource "aws_emr_cluster" "databricks_emr" {
   core_instance_group {
     instance_type  = "m5.xlarge"
     instance_count = 2
+    autoscaling_policy = jsonencode({
+      Constraints = {
+        MinCapacity = 2
+        MaxCapacity = 5
+      }
+      Rules = [{
+        Name = "ScaleOutMemory"
+        Description = "Увеличение количества инстансов при нагрузке"
+        Action = {
+          SimpleScalingPolicyConfiguration = {
+            AdjustmentType = "CHANGE_IN_CAPACITY"
+            ScalingAdjustment = 1
+            CoolDown = 300
+          }
+        }
+        Trigger = {
+          CloudWatchAlarmDefinition = {
+            ComparisonOperator = "GREATER_THAN"
+            EvaluationPeriods = 1
+            MetricName = "MemoryAvailable"
+            Namespace = "AWS/ElasticMapReduce"
+            Period = 300
+            Statistic = "AVERAGE"
+            Threshold = 500000000
+          }
+        }
+      }]
+    })
   }
 
   bootstrap_action {
@@ -83,6 +111,10 @@ resource "aws_emr_cluster" "databricks_emr" {
       }
     }
   ])
+
+  auto_termination_policy {
+    idle_timeout = 3600  # Закрывает инстансы после 1 часа бездействия
+  }
 
   tags = var.tags
 }
