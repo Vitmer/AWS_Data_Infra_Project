@@ -245,29 +245,6 @@ resource "aws_wafv2_web_acl_association" "api_waf" {
   web_acl_arn  = aws_wafv2_web_acl.main.arn
 }
 
-# Security Group for Bastion - Controls access rules for the Bastion host
-resource "aws_security_group" "bastion_sg" {
-  name        = "bastion-sg"
-  description = "Security Group for Bastion"
-  vpc_id      = aws_vpc.main.id
-
-  # Allows SSH access to Bastion from the internet (can be restricted by IP)
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["192.168.1.0/24"]  
-  }
-
-  # Allows Bastion to establish connections with EC2 instances
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["10.0.2.0/24"]  # Allows outbound traffic to the private subnet
-  }
-}
-
 # Network Firewall Policy - Defines firewall rules for controlling traffic
 resource "aws_networkfirewall_firewall_policy" "main" {
   name = "firewall-policy"
@@ -307,17 +284,35 @@ resource "aws_networkfirewall_rule_group" "stateless" {
 
 
 # =================================================
-# Compute (Bastion Host, Load Balancer, API Gateway)
+# Compute ( SSM Agent, Load Balancer, API Gateway)
 # =================================================
 
-# Bastion Host - Provides public SSH access for remote management
-resource "aws_instance" "bastion_public" {
-  ami             = var.ami_id
-  instance_type   = "t2.micro"
-  subnet_id       = aws_subnet.public.id
-  security_groups = [aws_security_group.bastion_sg.id]
-  key_name        = var.ssh_key_name
-  tags            = var.tags
+# IAM Role for EC2 (SSM Agent)
+resource "aws_iam_role" "ssm_role" {
+  name = "ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+    }]
+  })
+}
+
+# Attach AWS Managed Policy for SSM Access
+resource "aws_iam_role_policy_attachment" "ssm_policy" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# Instance Profile for EC2 (so that an EC2 instance can be connected via SSM if needed)
+resource "aws_iam_instance_profile" "ssm_instance_profile" {
+  name = "ssm-instance-profile"
+  role = aws_iam_role.ssm_role.name
 }
 
 # Load Balancer Target Group - Routes traffic to backend services
@@ -351,26 +346,3 @@ output "redshift_subnet_id" {
   description = "Subnet ID for Redshift"
   value       = aws_subnet.redshift_subnet.id
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

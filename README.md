@@ -22,6 +22,7 @@ The cloud infrastructure is designed to support scalable and secure data process
 - **Internet Gateway:** Provides secure public access to resources as needed.
 - **Security Groups:** Restrict unauthorized access to resources.
 - **IAM Roles & Policies:** Granular access control for services and users.
+- **AWS Systems Manager (SSM):** Secure remote management without SSH.
 
 ### **2️⃣ Compute & Auto-Scaling**
 - **Amazon EC2 (Auto-Scaling Groups):** Automatically adjusts compute capacity based on demand.
